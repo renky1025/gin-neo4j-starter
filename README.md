@@ -20,6 +20,7 @@ go run main.go
 ```
 
 ## the structures of files
+```shell
 ├─config     # project configs
 ├─controller # project controller
 ├─database   # database conn
@@ -32,5 +33,5 @@ go run main.go
 ├─router
 ├─service
 └─util
-
+```
 ## update config in file ./config/config.yaml
