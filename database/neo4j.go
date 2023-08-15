@@ -35,10 +35,10 @@ func InitNeo4j(cfg *config.Config) neo4j.DriverWithContext {
 }
 
 type Person struct {
-	ID          int64  `json:"id" from:"id"`
-	Name        string `json:"name" from:"name"`
-	Age         int    `json:"age" from:"age"`
-	Identifiers int64  `json:"identifiers,omitempty" from:"identifiers"`
+	ID   int64  `json:"id" from:"id"`
+	Name string `json:"name" from:"name"`
+	Age  int    `json:"age" from:"age"`
+	//Identifiers int64  `json:"identifiers,omitempty" from:"identifiers"`
 }
 
 func (n *Neo4jDriver) CreatePerson(name string, age int) (*Person, error) {
@@ -47,7 +47,7 @@ func (n *Neo4jDriver) CreatePerson(name string, age int) (*Person, error) {
 	defer session.Close(ctx)
 
 	result, err := session.Run(ctx,
-		"CREATE (p:Person {name: $name, age: $age, identifiers: $id }) RETURN id(p)",
+		"CREATE (p:Person {name: $name, age: $age}) RETURN id(p)",
 		map[string]interface{}{"name": name, "age": age, "id": util.GenerateSnowID()},
 	)
 	if err != nil {
@@ -168,6 +168,24 @@ func (n *Neo4jDriver) DeletePerson(id int64) error {
 	_, err := session.Run(ctx,
 		"MATCH (p:Person) WHERE id(p) = $id DELETE p",
 		map[string]interface{}{"id": id},
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (n *Neo4jDriver) CreateRelationship(node1 string, node2 string) error {
+	driver := *n.DBCONN
+	session := driver.NewSession(ctx, neo4j.SessionConfig{})
+	defer session.Close(ctx)
+	// MATCH (a:Person {name:'Shawn'}),
+	// (b:Person {name:'Sally'})
+	// MERGE (a)-[:FRIENDS {since:2001}]->(b)
+	_, err := session.Run(ctx,
+		"MATCH (a:Person {name: $node1}), (b:Person {name: $node2}) MERGE (a)-[:FRIENDS]->(b)",
+		map[string]interface{}{"node1": node1, "node2": node2},
 	)
 	if err != nil {
 		return err

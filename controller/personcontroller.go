@@ -2,6 +2,7 @@ package controller
 
 import (
 	"go-gin-restful-service/database"
+	"go-gin-restful-service/dto"
 	"go-gin-restful-service/response"
 	"strconv"
 
@@ -32,6 +33,22 @@ func (ctr *PersonController) CreatePerson(ctx *gin.Context) {
 		return
 	}
 	response.OkWithData(ctx, res)
+}
+
+func (ctr *PersonController) CreateRelationShip(ctx *gin.Context) {
+	var relation dto.RelationShipDTO
+	if err := ctx.ShouldBindJSON(&relation); err != nil {
+		response.FailWithMsg(ctx, response.ParamsValidError, err.Error())
+		return
+	}
+
+	nj := *ctr.Neo4j
+	err := nj.CreateRelationship(relation.Node1, relation.Node2, relation.RelationShip)
+	if err != nil {
+		response.FailWithMsg(ctx, response.Failed, err.Error())
+		return
+	}
+	response.OkWithMsg(ctx, "ok")
 }
 
 func (ctr *PersonController) GetPersonBy(ctx *gin.Context) {
