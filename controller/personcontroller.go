@@ -43,7 +43,7 @@ func (ctr *PersonController) CreateRelationShip(ctx *gin.Context) {
 	}
 
 	nj := *ctr.Neo4j
-	err := nj.CreateRelationship(relation.Node1, relation.Node2, relation.RelationShip)
+	err := nj.CreateRelationship(relation.Node1, relation.Node2)
 	if err != nil {
 		response.FailWithMsg(ctx, response.Failed, err.Error())
 		return
