@@ -5,6 +5,7 @@ import (
 	"go-gin-restful-service/dto"
 	"go-gin-restful-service/response"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -61,6 +62,21 @@ func (ctr *PersonController) GetPersonBy(ctx *gin.Context) {
 	nj := *ctr.Neo4j
 	id, _ := strconv.ParseInt(pid, 10, 64)
 	res, err := nj.GetPersonById(id)
+	if err != nil {
+		response.FailWithMsg(ctx, response.Failed, err.Error())
+		return
+	}
+	response.OkWithData(ctx, res)
+}
+
+func (ctr *PersonController) SearchPerson(ctx *gin.Context) {
+	pageNo := strings.TrimSpace(ctx.Query("pageNo"))
+	pageSize := strings.TrimSpace(ctx.Query("pageSize"))
+	name := strings.TrimSpace(ctx.Query("name"))
+	nj := *ctr.Neo4j
+	pn, _ := strconv.ParseInt(pageNo, 10, 64)
+	ps, _ := strconv.ParseInt(pageSize, 10, 64)
+	res, err := nj.SearchPerson(name, (pn-1)*ps, ps)
 	if err != nil {
 		response.FailWithMsg(ctx, response.Failed, err.Error())
 		return

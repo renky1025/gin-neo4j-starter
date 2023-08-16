@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"go-gin-restful-service/config"
 	"go-gin-restful-service/log"
-	"go-gin-restful-service/util"
 
+	"github.com/mitchellh/mapstructure"
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
+	"github.com/pilinux/structs"
 )
 
 type Neo4jDriver struct {
@@ -46,10 +47,15 @@ func (n *Neo4jDriver) CreatePerson(name string, age int) (*Person, error) {
 	session := driver.NewSession(ctx, neo4j.SessionConfig{})
 	defer session.Close(ctx)
 
-	result, err := session.Run(ctx,
-		"CREATE (p:Person {name: $name, age: $age}) RETURN id(p)",
-		map[string]interface{}{"name": name, "age": age, "id": util.GenerateSnowID()},
-	)
+	cypher := `CREATE(user:Person) SET user = $prop RETURN user`
+	result, err := session.Run(ctx, cypher, map[string]interface{}{
+		"prop": structs.Map(Person{Name: name, Age: age}),
+	})
+
+	// result, err := session.Run(ctx,
+	// 	"CREATE (p:Person {name: $name, age: $age}) RETURN id(p)",
+	// 	map[string]interface{}{"name": name, "age": age, "id": util.GenerateSnowID()},
+	// )
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +139,7 @@ func (n *Neo4jDriver) UpdatePersonAge(id int64, age int) (*Person, error) {
 	driver := *n.DBCONN
 	session := driver.NewSession(ctx, neo4j.SessionConfig{})
 	defer session.Close(ctx)
-
+	// 增加节点属性 MATCH (a:Person {name:'Shawn'}) SET a.city="上海"
 	result, err := session.Run(ctx,
 		"MATCH (p:Person) WHERE id(p) = $id SET p.age = $age RETURN p.name, p.age",
 		map[string]interface{}{"id": id, "age": age},
@@ -164,7 +170,9 @@ func (n *Neo4jDriver) DeletePerson(id int64) error {
 	driver := *n.DBCONN
 	session := driver.NewSession(ctx, neo4j.SessionConfig{})
 	defer session.Close(ctx)
-
+	// 删除有关系的节点 MATCH (a:Person {name:'Todd'})-[rel]-(b:Person) DELETE a,b,rel
+	// 删除节点 MATCH (a:Location {city:'Portland'}) DELETE a
+	// 删除节点的属性 MATCH (a:Person {name:'Mike'}) REMOVE a.test;
 	_, err := session.Run(ctx,
 		"MATCH (p:Person) WHERE id(p) = $id DELETE p",
 		map[string]interface{}{"id": id},
@@ -192,4 +200,30 @@ func (n *Neo4jDriver) CreateRelationship(node1 string, node2 string) error {
 	}
 
 	return nil
+}
+
+func (n *Neo4jDriver) SearchPerson(name string, offset int64, limit int64) ([]Person, error) {
+	driver := *n.DBCONN
+	session := driver.NewSession(ctx, neo4j.SessionConfig{})
+	defer session.Close(ctx)
+	cypher := `MATCH (p:Person) WHERE p.name =~ '.*'+$name+'.*' RETURN p SKIP $offset LIMIT $limit`
+	result, err := session.Run(ctx, cypher,
+		map[string]interface{}{"name": name, "offset": offset, "limit": limit},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	res := make([]Person, 0)
+	for result.Next(ctx) {
+		record := result.Record()
+		if value, ok := record.Get("p"); ok {
+			node := value.(neo4j.Node)
+			props := node.Props
+			person := Person{}
+			mapstructure.Decode(props, &person)
+			res = append(res, person)
+		}
+	}
+	return res, nil
 }

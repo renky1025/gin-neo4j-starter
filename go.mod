@@ -10,6 +10,7 @@ require (
 	github.com/jinzhu/copier v0.3.5
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/neo4j/neo4j-go-driver/v5 v5.11.0
+	github.com/pilinux/structs v1.1.1
 	github.com/spf13/viper v1.16.0
 	go.uber.org/zap v1.21.0
 )

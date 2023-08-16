@@ -25,5 +25,6 @@ func Setup(ctx context.Context, cfg *config.Config, router *gin.Engine) *gin.Eng
 	apiRouter.POST("/create", personController.CreatePerson)
 	apiRouter.POST("/relation", personController.CreateRelationShip)
 	apiRouter.GET("/person/:pid", personController.GetPersonBy)
+	apiRouter.GET("/search", personController.SearchPerson)
 	return router
 }
