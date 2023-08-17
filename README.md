@@ -6,7 +6,7 @@
  * using [viper](https://github.com/spf13/viper) as a configuration solution
  * using [swag](https://github.com/swaggo/swag) as API Documents
  * using [neo4j](https://github.com/neo4j/neo4j-go-driver/v5) as a graph database
-
+ * using [mongodb](https://go.mongodb.org/mongo-driver) as a nosql database
 
 ## How to start the application
 ### start neo4j at local
