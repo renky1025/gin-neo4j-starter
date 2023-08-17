@@ -1,7 +1,7 @@
 package controller
 
 import (
-	"go-gin-restful-service/database"
+	"go-gin-restful-service/database/neo4jdb"
 	"go-gin-restful-service/dto"
 	"go-gin-restful-service/response"
 	"strconv"
@@ -11,17 +11,17 @@ import (
 )
 
 type PersonController struct {
-	Neo4j *database.Neo4jDriver
+	Neo4j *neo4jdb.Neo4jDriver
 }
 
-func NewPersonController(n4j *database.Neo4jDriver) *PersonController {
+func NewPersonController(n4j *neo4jdb.Neo4jDriver) *PersonController {
 	return &PersonController{
 		Neo4j: n4j,
 	}
 }
 
 func (ctr *PersonController) CreatePerson(ctx *gin.Context) {
-	var persion database.Person
+	var persion neo4jdb.Person
 	if err := ctx.ShouldBindJSON(&persion); err != nil {
 		response.FailWithMsg(ctx, response.ParamsValidError, err.Error())
 		return

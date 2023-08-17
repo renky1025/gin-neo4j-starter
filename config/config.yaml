@@ -1,5 +1,10 @@
 server_port: 8090
 neo4j:
-  uri: bolt://192.168.1.21:7687
+  uri: bolt://192.168.1.1:7687
   username: neo4j
   password: test123456
+database:
+  uri: mongodb://192.168.1.1:27017
+  dbname: test
+  username: admin
+  password: admin@123

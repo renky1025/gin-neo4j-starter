@@ -1,4 +1,4 @@
-package database
+package neo4jdb
 
 import (
 	"context"
@@ -71,37 +71,6 @@ func (n *Neo4jDriver) CreatePerson(name string, age int) (*Person, error) {
 	}
 
 	return &Person{ID: id, Name: name, Age: age}, nil
-}
-
-func (n *Neo4jDriver) GetPersonByName(name string) (*Person, error) {
-	driver := *n.DBCONN
-	session := driver.NewSession(ctx, neo4j.SessionConfig{})
-	defer session.Close(ctx)
-
-	result, err := session.Run(ctx,
-		"MATCH (p:Person) WHERE p.name = $name RETURN id(p), p.age LIMIT 1",
-		map[string]interface{}{"name": name},
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	record, err := result.Single(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	id, ok := record.Values[0].(int64)
-	if !ok {
-		return nil, fmt.Errorf("invalid ID type")
-	}
-
-	age, ok := record.Values[1].(int64)
-	if !ok {
-		return nil, fmt.Errorf("invalid age type")
-	}
-
-	return &Person{ID: id, Name: name, Age: int(age)}, nil
 }
 
 func (n *Neo4jDriver) GetPersonById(id int64) (*Person, error) {
@@ -184,6 +153,23 @@ func (n *Neo4jDriver) DeletePerson(id int64) error {
 	return nil
 }
 
+func (n *Neo4jDriver) CleanAllDB(id int64) error {
+	// match (e)-[l]->(x) delete e,l,x;
+	// match (n) delete n;
+	driver := *n.DBCONN
+	session := driver.NewSession(ctx, neo4j.SessionConfig{})
+	defer session.Close(ctx)
+	_, err := session.Run(ctx,
+		"match (e)-[l]->(x) delete e,l,x;match (n) delete n;",
+		map[string]interface{}{},
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (n *Neo4jDriver) CreateRelationship(node1 string, node2 string) error {
 	driver := *n.DBCONN
 	session := driver.NewSession(ctx, neo4j.SessionConfig{})
@@ -207,6 +193,10 @@ func (n *Neo4jDriver) SearchPerson(name string, offset int64, limit int64) ([]Pe
 	session := driver.NewSession(ctx, neo4j.SessionConfig{})
 	defer session.Close(ctx)
 	cypher := `MATCH (p:Person) WHERE p.name =~ '.*'+$name+'.*' RETURN p SKIP $offset LIMIT $limit`
+
+	// 查询有关系的节点
+	// cypher1 := `MATCH (n)-[:MARRIED]-() RETURN n SKIP $offset LIMIT $limit`
+	// 查找 节点 关系的关系的 信息 MATCH (a:Person {name:'Mike'})-[r1:FRIENDS]-()-[r2:FRIENDS]-(friend_of_a_friend) RETURN friend_of_a_friend.name AS fofName
 	result, err := session.Run(ctx, cypher,
 		map[string]interface{}{"name": name, "offset": offset, "limit": limit},
 	)

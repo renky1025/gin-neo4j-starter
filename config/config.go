@@ -9,11 +9,18 @@ import (
 
 // Config ...
 type Config struct {
-	Neo4J      Neo4J `json:"neo4j"`
-	ServerPort int   `json:"server_port"`
+	Neo4J         Neo4J         `json:"neo4j"`
+	ServerPort    int           `json:"server_port"`
+	MongoDatabase MongoDatabase `json:"database"`
 }
 type Neo4J struct {
 	URI      string `json:"uri"`
+	UserName string `json:"username"`
+	Password string `json:"password"`
+}
+type MongoDatabase struct {
+	URI      string `json:"uri"`
+	DbName   string `json:"dbname"`
 	UserName string `json:"username"`
 	Password string `json:"password"`
 }
