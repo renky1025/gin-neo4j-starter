@@ -12,6 +12,7 @@ type Config struct {
 	Neo4J         Neo4J         `json:"neo4j"`
 	ServerPort    int           `json:"server_port"`
 	MongoDatabase MongoDatabase `json:"database"`
+	AwsConfig     AwsConfig     `json:"aws"`
 }
 type Neo4J struct {
 	URI      string `json:"uri"`
@@ -23,6 +24,13 @@ type MongoDatabase struct {
 	DbName   string `json:"dbname"`
 	UserName string `json:"username"`
 	Password string `json:"password"`
+}
+type AwsConfig struct {
+	Endpoint   string `json:"endpoint"`
+	AccessKey  string `json:"access-key-id"`
+	SecretKey  string `json:"access-key-secret"`
+	BucketName string `json:"bucket-name"`
+	BucketUrl  string `json:"bucket-url"`
 }
 
 var c *Config
