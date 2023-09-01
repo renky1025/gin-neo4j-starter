@@ -4,11 +4,15 @@ import (
 	"context"
 	"fmt"
 	"go-gin-restful-service/config"
+	"go-gin-restful-service/dto"
 	"go-gin-restful-service/log"
+	"go-gin-restful-service/model"
+	"reflect"
+	"strconv"
+	"strings"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
-	"github.com/pilinux/structs"
 )
 
 type Neo4jDriver struct {
@@ -35,52 +39,41 @@ func InitNeo4j(cfg *config.Config) neo4j.DriverWithContext {
 	return neodriver
 }
 
-type Person struct {
-	ID   int64  `json:"id" from:"id"`
-	Name string `json:"name" from:"name"`
-	Age  int    `json:"age" from:"age"`
-	//Identifiers int64  `json:"identifiers,omitempty" from:"identifiers"`
-}
-
-func (n *Neo4jDriver) CreatePerson(name string, age int) (*Person, error) {
+func (n *Neo4jDriver) CreateNode(label string, nodeMap map[string]interface{}) (int64, error) {
 	driver := *n.DBCONN
 	session := driver.NewSession(ctx, neo4j.SessionConfig{})
 	defer session.Close(ctx)
 
-	cypher := `CREATE(user:Person) SET user = $prop RETURN user`
+	cypher := `CREATE(node:` + label + `) SET node = $prop RETURN id(node)`
 	result, err := session.Run(ctx, cypher, map[string]interface{}{
-		"prop": structs.Map(Person{Name: name, Age: age}),
+		"prop": nodeMap,
 	})
 
-	// result, err := session.Run(ctx,
-	// 	"CREATE (p:Person {name: $name, age: $age}) RETURN id(p)",
-	// 	map[string]interface{}{"name": name, "age": age, "id": util.GenerateSnowID()},
-	// )
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	record, err := result.Single(ctx)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	id, ok := record.Values[0].(int64)
 	if !ok {
-		return nil, fmt.Errorf("invalid ID type")
+		return 0, fmt.Errorf("invalid ID type")
 	}
 
-	return &Person{ID: id, Name: name, Age: age}, nil
+	return id, nil
 }
 
-func (n *Neo4jDriver) GetPersonById(id int64) (*Person, error) {
+func (n *Neo4jDriver) GetNodeBy(node model.NodeFrom) (interface{}, error) {
 	driver := *n.DBCONN
 	session := driver.NewSession(ctx, neo4j.SessionConfig{})
 	defer session.Close(ctx)
 	//match (n) where id(n)=1 return n
 	result, err := session.Run(ctx,
-		"MATCH (p:Person) WHERE id(p) = $id RETURN p.name, p.age LIMIT 1",
-		map[string]interface{}{"id": id},
+		"MATCH (p:"+node.Label+" {name: $name}) RETURN p LIMIT 1",
+		map[string]interface{}{"name": node.Name},
 	)
 	if err != nil {
 		return nil, err
@@ -91,66 +84,73 @@ func (n *Neo4jDriver) GetPersonById(id int64) (*Person, error) {
 		return nil, err
 	}
 
-	name, ok := record.Values[0].(string)
-	if !ok {
-		return nil, fmt.Errorf("invalid name type")
-	}
-
-	age, ok := record.Values[1].(int64)
-	if !ok {
-		return nil, fmt.Errorf("invalid age type")
-	}
-
-	return &Person{ID: id, Name: name, Age: int(age)}, nil
+	return record.Values[0], nil
 }
 
-func (n *Neo4jDriver) UpdatePersonAge(id int64, age int) (*Person, error) {
+func buildValues(updateData map[string]interface{}) string {
+	temp := make([]string, 0)
+	for k, v := range updateData {
+		fmt.Println(reflect.TypeOf(v))
+		switch v.(type) {
+		case float64:
+			temp = append(temp, fmt.Sprintf(" p.%s = %v ", k, v))
+		case string:
+			temp = append(temp, fmt.Sprintf(" p.%s = '%v' ", k, v))
+		default:
+			temp = append(temp, fmt.Sprintf(" p.%s = '%v' ", k, v))
+		}
+	}
+	return strings.Join(temp, ",")
+}
+
+func (n *Neo4jDriver) UpdateNodeAttr(node model.NodeFrom, updateData map[string]interface{}) (bool, error) {
 	driver := *n.DBCONN
 	session := driver.NewSession(ctx, neo4j.SessionConfig{})
 	defer session.Close(ctx)
 	// 增加节点属性 MATCH (a:Person {name:'Shawn'}) SET a.city="上海"
+	temp := buildValues(updateData)
 	result, err := session.Run(ctx,
-		"MATCH (p:Person) WHERE id(p) = $id SET p.age = $age RETURN p.name, p.age",
-		map[string]interface{}{"id": id, "age": age},
+		"MATCH (p:"+node.Label+") WHERE p.name = $name SET "+temp+" RETURN p.name",
+		map[string]interface{}{"name": node.Name},
 	)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
 
 	record, err := result.Single(ctx)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
 
-	name, ok := record.Values[0].(string)
+	_, ok := record.Values[0].(string)
 	if !ok {
-		return nil, fmt.Errorf("invalid name type")
+		return false, fmt.Errorf("invalid name type")
 	}
 
-	newAge, ok := record.Values[1].(int64)
-	if !ok {
-		return nil, fmt.Errorf("invalid age type")
-	}
-
-	return &Person{ID: id, Name: name, Age: int(newAge)}, nil
+	return true, nil
 }
 
-func (n *Neo4jDriver) DeletePerson(id int64) error {
+func (n *Neo4jDriver) DeleteNodeByLabel(label string, name string) (bool, error) {
 	driver := *n.DBCONN
 	session := driver.NewSession(ctx, neo4j.SessionConfig{})
 	defer session.Close(ctx)
 	// 删除有关系的节点 MATCH (a:Person {name:'Todd'})-[rel]-(b:Person) DELETE a,b,rel
 	// 删除节点 MATCH (a:Location {city:'Portland'}) DELETE a
 	// 删除节点的属性 MATCH (a:Person {name:'Mike'}) REMOVE a.test;
-	_, err := session.Run(ctx,
-		"MATCH (p:Person) WHERE id(p) = $id DELETE p",
-		map[string]interface{}{"id": id},
-	)
-	if err != nil {
-		return err
+	cypher := "MATCH (n:" + label + " {name: " + name + "}) detach delete n"
+	if len(name) == 0 {
+		cypher = "MATCH (n:" + label + ") detach delete n"
 	}
 
-	return nil
+	_, err := session.Run(ctx,
+		cypher, map[string]interface{}{},
+		//"MATCH (p:Person) WHERE id(p) = $id DELETE p",map[string]interface{}{"id": id},
+	)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 func (n *Neo4jDriver) CleanAllDB(id int64) error {
@@ -170,16 +170,37 @@ func (n *Neo4jDriver) CleanAllDB(id int64) error {
 	return nil
 }
 
-func (n *Neo4jDriver) CreateRelationship(node1 string, node2 string) error {
+func buildMergeValues(inputData map[string]interface{}) string {
+	temp := make([]string, 0)
+	for k, v := range inputData {
+		fmt.Println(reflect.TypeOf(v))
+		switch v.(type) {
+		case float64:
+			temp = append(temp, fmt.Sprintf(" %s: %v ", k, v))
+		case string:
+			temp = append(temp, fmt.Sprintf(" %s: '%v' ", k, v))
+		default:
+			temp = append(temp, fmt.Sprintf(" %s: '%v' ", k, v))
+		}
+	}
+
+	return "{" + strings.Join(temp, ",") + "}"
+}
+
+func (n *Neo4jDriver) CreateRelationship(node1 model.NodeFrom, node2 model.NodeFrom, relation model.RelationMap) error {
 	driver := *n.DBCONN
 	session := driver.NewSession(ctx, neo4j.SessionConfig{})
 	defer session.Close(ctx)
 	// MATCH (a:Person {name:'Shawn'}),
 	// (b:Person {name:'Sally'})
 	// MERGE (a)-[:FRIENDS {since:2001}]->(b)
+	cypher := "MATCH (a:" + node1.Label + " {name: $node1}), (b:" + node2.Label + " {name: $node2}) MERGE (a)-[:" + relation.RelationShip + "]->(b)"
+	if relation.Attr != nil {
+		cypher = "MATCH (a:" + node1.Label + " {name: $node1}), (b:" + node2.Label + " {name: $node2}) MERGE (a)-[:" + relation.RelationShip + " " + buildMergeValues(relation.Attr) + "]->(b)"
+	}
 	_, err := session.Run(ctx,
-		"MATCH (a:Person {name: $node1}), (b:Person {name: $node2}) MERGE (a)-[:FRIENDS]->(b)",
-		map[string]interface{}{"node1": node1, "node2": node2},
+		cypher,
+		map[string]interface{}{"node1": node1.Name, "node2": node2.Name},
 	)
 	if err != nil {
 		return err
@@ -188,29 +209,73 @@ func (n *Neo4jDriver) CreateRelationship(node1 string, node2 string) error {
 	return nil
 }
 
-func (n *Neo4jDriver) SearchPerson(name string, offset int64, limit int64) ([]Person, error) {
+// query condition: name, relationship, times, relation properties
+func (n *Neo4jDriver) SearchNodes(params dto.QueryParamsDTO) ([]map[string]interface{}, error) {
 	driver := *n.DBCONN
 	session := driver.NewSession(ctx, neo4j.SessionConfig{})
 	defer session.Close(ctx)
-	cypher := `MATCH (p:Person) WHERE p.name =~ '.*'+$name+'.*' RETURN p SKIP $offset LIMIT $limit`
 
+	queryMap := map[string]interface{}{
+		"offset": (params.PageNo - 1) * params.PageSize,
+		"limit":  params.PageSize,
+	}
+	where := `WHERE `
+	cypher := `MATCH (f)`
+	wherefrom := ""
+	whereto := ""
+	if params.NodeFrom != nil {
+		cypher = `MATCH (f:` + params.NodeFrom.Label + `)`
+		if len(params.NodeFrom.Name) > 0 {
+			wherefrom = ` f.name =~ '.*` + params.NodeFrom.Name + `.*' `
+		}
+	}
+
+	if params.RelationShip != nil {
+		cypher += `-[rels:` + params.RelationShip.Name + `*` + strconv.Itoa(params.RelationShip.Number) + `]`
+	}
+	if params.NodeTo != nil {
+		if len(params.NodeTo.Name) > 0 {
+			whereto += ` t.name =~ '.*` + params.NodeTo.Name + `.*'  `
+		}
+		cypher += `-(t:` + params.NodeTo.Label + `) `
+		if len(wherefrom) > 0 {
+			cypher += where + wherefrom
+		}
+		if len(whereto) > 0 {
+			cypher += ` AND ` + whereto
+		}
+		cypher += ` RETURN t `
+	} else {
+		if params.RelationShip != nil {
+			cypher += `-() `
+		}
+		if len(wherefrom) > 0 {
+			cypher += where + wherefrom
+		}
+		cypher += ` RETURN f `
+	}
+	if params.Sort != nil && len(*params.Sort) > 0 && params.Order != nil && len(*params.Order) > 0 {
+		cypher += ` ORDER BY f.` + *params.Order + ` ` + *params.Sort
+	}
+	cypher += ` SKIP $offset LIMIT $limit `
+
+	//WHERE p.name =~ '.*'+$name+'.*' RETURN p ORDER BY n.name DESC SKIP $offset LIMIT $limit`
+	//MATCH (n:Person  {person_id:'180'})-[rels:FRIEND*2]-(m:Person)
 	// 查询有关系的节点
 	// cypher1 := `MATCH (n)-[:MARRIED]-() RETURN n SKIP $offset LIMIT $limit`
 	// 查找 节点 关系的关系的 信息 MATCH (a:Person {name:'Mike'})-[r1:FRIENDS]-()-[r2:FRIENDS]-(friend_of_a_friend) RETURN friend_of_a_friend.name AS fofName
-	result, err := session.Run(ctx, cypher,
-		map[string]interface{}{"name": name, "offset": offset, "limit": limit},
-	)
+	result, err := session.Run(ctx, cypher, queryMap)
 	if err != nil {
-		return nil, err
+		return []map[string]interface{}{}, err
 	}
 
-	res := make([]Person, 0)
+	res := make([]map[string]interface{}, 0)
 	for result.Next(ctx) {
 		record := result.Record()
-		if value, ok := record.Get("p"); ok {
+		if value, ok := record.Get("f"); ok {
 			node := value.(neo4j.Node)
 			props := node.Props
-			person := Person{}
+			person := map[string]interface{}{}
 			mapstructure.Decode(props, &person)
 			res = append(res, person)
 		}

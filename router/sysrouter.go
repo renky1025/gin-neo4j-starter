@@ -22,9 +22,11 @@ func Setup(ctx context.Context, cfg *config.Config, router *gin.Engine) *gin.Eng
 	// routers
 	// groups
 	personController := controller.NewPersonController(n4j)
-	apiRouter.POST("/create", personController.CreatePerson)
+	apiRouter.POST("/create", personController.CreateNewNode)
+	apiRouter.POST("/update/:label/:name", personController.UpdateNodeBy)
 	apiRouter.POST("/relation", personController.CreateRelationShip)
-	apiRouter.GET("/person/:pid", personController.GetPersonBy)
-	apiRouter.GET("/search", personController.SearchPerson)
+	apiRouter.GET("/view/:label/:name", personController.GetNodeBy)
+	apiRouter.GET("/del/:label/:name", personController.DelteNodeBy)
+	apiRouter.POST("/search", personController.SearchNodes)
 	return router
 }

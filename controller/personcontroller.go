@@ -3,9 +3,8 @@ package controller
 import (
 	"go-gin-restful-service/database/neo4jdb"
 	"go-gin-restful-service/dto"
+	"go-gin-restful-service/model"
 	"go-gin-restful-service/response"
-	"strconv"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -20,15 +19,54 @@ func NewPersonController(n4j *neo4jdb.Neo4jDriver) *PersonController {
 	}
 }
 
-func (ctr *PersonController) CreatePerson(ctx *gin.Context) {
-	var persion neo4jdb.Person
+func (ctr *PersonController) CreateNewNode(ctx *gin.Context) {
+	var persion dto.CreateNodeDTO
 	if err := ctx.ShouldBindJSON(&persion); err != nil {
-		response.FailWithMsg(ctx, response.ParamsValidError, err.Error())
+		response.Fail(ctx, response.ParamsValidError)
 		return
 	}
 
 	nj := *ctr.Neo4j
-	res, err := nj.CreatePerson(persion.Name, persion.Age)
+	res, err := nj.CreateNode(persion.Label, persion.NodeAttr)
+	if err != nil {
+		response.FailWithMsg(ctx, response.Failed, err.Error())
+		return
+	}
+	response.OkWithData(ctx, res)
+}
+
+func (ctr *PersonController) UpdateNodeBy(ctx *gin.Context) {
+	name := ctx.Param("name")
+	label := ctx.Param("label")
+	var payload map[string]interface{}
+	if len(name) == 0 || len(label) == 0 {
+		response.Fail(ctx, response.ParamsValidError)
+		return
+	}
+	if err := ctx.ShouldBindJSON(&payload); err != nil {
+		response.Fail(ctx, response.ParamsValidError)
+		return
+	}
+
+	nj := *ctr.Neo4j
+
+	res, err := nj.UpdateNodeAttr(model.NodeFrom{Label: label, Name: name}, payload)
+	if err != nil {
+		response.FailWithMsg(ctx, response.Failed, err.Error())
+		return
+	}
+	response.OkWithData(ctx, res)
+}
+
+func (ctr *PersonController) GetNodeBy(ctx *gin.Context) {
+	name := ctx.Param("name")
+	label := ctx.Param("label")
+	if len(name) == 0 || len(label) == 0 {
+		response.Fail(ctx, response.ParamsValidError)
+		return
+	}
+	nj := *ctr.Neo4j
+	res, err := nj.GetNodeBy(model.NodeFrom{Label: label, Name: name})
 	if err != nil {
 		response.FailWithMsg(ctx, response.Failed, err.Error())
 		return
@@ -39,12 +77,12 @@ func (ctr *PersonController) CreatePerson(ctx *gin.Context) {
 func (ctr *PersonController) CreateRelationShip(ctx *gin.Context) {
 	var relation dto.RelationShipDTO
 	if err := ctx.ShouldBindJSON(&relation); err != nil {
-		response.FailWithMsg(ctx, response.ParamsValidError, err.Error())
+		response.Fail(ctx, response.ParamsValidError)
 		return
 	}
 
 	nj := *ctr.Neo4j
-	err := nj.CreateRelationship(relation.Node1, relation.Node2)
+	err := nj.CreateRelationship(relation.Node1, relation.Node2, relation.RelationShip)
 	if err != nil {
 		response.FailWithMsg(ctx, response.Failed, err.Error())
 		return
@@ -52,16 +90,15 @@ func (ctr *PersonController) CreateRelationShip(ctx *gin.Context) {
 	response.OkWithMsg(ctx, "ok")
 }
 
-func (ctr *PersonController) GetPersonBy(ctx *gin.Context) {
-	pid := ctx.Param("pid")
-	if len(pid) == 0 {
-		response.FailWithMsg(ctx, response.ParamsValidError, "pid not allow be nil")
+func (ctr *PersonController) DelteNodeBy(ctx *gin.Context) {
+	name := ctx.Param("name")
+	label := ctx.Param("label")
+	if len(name) == 0 || len(label) == 0 {
+		response.Fail(ctx, response.ParamsValidError)
 		return
 	}
-
 	nj := *ctr.Neo4j
-	id, _ := strconv.ParseInt(pid, 10, 64)
-	res, err := nj.GetPersonById(id)
+	res, err := nj.DeleteNodeByLabel(label, name)
 	if err != nil {
 		response.FailWithMsg(ctx, response.Failed, err.Error())
 		return
@@ -69,14 +106,14 @@ func (ctr *PersonController) GetPersonBy(ctx *gin.Context) {
 	response.OkWithData(ctx, res)
 }
 
-func (ctr *PersonController) SearchPerson(ctx *gin.Context) {
-	pageNo := strings.TrimSpace(ctx.Query("pageNo"))
-	pageSize := strings.TrimSpace(ctx.Query("pageSize"))
-	name := strings.TrimSpace(ctx.Query("name"))
+func (ctr *PersonController) SearchNodes(ctx *gin.Context) {
+	var params dto.QueryParamsDTO
+	if err := ctx.ShouldBindJSON(&params); err != nil {
+		response.Fail(ctx, response.ParamsValidError)
+		return
+	}
 	nj := *ctr.Neo4j
-	pn, _ := strconv.ParseInt(pageNo, 10, 64)
-	ps, _ := strconv.ParseInt(pageSize, 10, 64)
-	res, err := nj.SearchPerson(name, (pn-1)*ps, ps)
+	res, err := nj.SearchNodes(params)
 	if err != nil {
 		response.FailWithMsg(ctx, response.Failed, err.Error())
 		return
