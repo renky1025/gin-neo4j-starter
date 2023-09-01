@@ -282,3 +282,28 @@ func (n *Neo4jDriver) SearchNodes(params dto.QueryParamsDTO) ([]map[string]inter
 	}
 	return res, nil
 }
+
+func (n *Neo4jDriver) CountNodes(label string) (int64, error) {
+	driver := *n.DBCONN
+	session := driver.NewSession(ctx, neo4j.SessionConfig{})
+	defer session.Close(ctx)
+	cypher := "match (n) RETURN count(n)"
+	if len(label) > 0 {
+		cypher = "match (n:" + label + ") RETURN count(n)"
+	}
+
+	result, err := session.Run(ctx, cypher, map[string]interface{}{})
+	if err != nil {
+		return 0, err
+	}
+	record, err := result.Single(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	num, ok := record.Values[0].(int64)
+	if !ok {
+		return 0, fmt.Errorf("invalid name type")
+	}
+	return num, nil
+}

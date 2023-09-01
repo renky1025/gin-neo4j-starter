@@ -26,6 +26,7 @@ func Setup(ctx context.Context, cfg *config.Config, router *gin.Engine) *gin.Eng
 	apiRouter.POST("/update/:label/:name", personController.UpdateNodeBy)
 	apiRouter.POST("/relation", personController.CreateRelationShip)
 	apiRouter.GET("/view/:label/:name", personController.GetNodeBy)
+	apiRouter.GET("/count", personController.CountNodeBy)
 	apiRouter.GET("/del/:label/:name", personController.DelteNodeBy)
 	apiRouter.POST("/search", personController.SearchNodes)
 	return router

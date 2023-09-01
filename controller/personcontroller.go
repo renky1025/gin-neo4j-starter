@@ -106,6 +106,17 @@ func (ctr *PersonController) DelteNodeBy(ctx *gin.Context) {
 	response.OkWithData(ctx, res)
 }
 
+func (ctr *PersonController) CountNodeBy(ctx *gin.Context) {
+	label := ctx.Query("label")
+	nj := *ctr.Neo4j
+	res, err := nj.CountNodes(label)
+	if err != nil {
+		response.FailWithMsg(ctx, response.Failed, err.Error())
+		return
+	}
+	response.OkWithData(ctx, res)
+}
+
 func (ctr *PersonController) SearchNodes(ctx *gin.Context) {
 	var params dto.QueryParamsDTO
 	if err := ctx.ShouldBindJSON(&params); err != nil {
