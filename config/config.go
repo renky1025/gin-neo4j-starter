@@ -9,10 +9,18 @@ import (
 
 // Config ...
 type Config struct {
-	Neo4J         Neo4J         `json:"neo4j"`
-	ServerPort    int           `json:"server_port"`
-	MongoDatabase MongoDatabase `json:"database"`
-	AwsConfig     AwsConfig     `json:"aws"`
+	Neo4J         Neo4J         `json:"neo4j" yaml:"neo4j"`
+	ServerPort    int           `json:"server_port" yaml:"server_port"`
+	MongoDatabase MongoDatabase `json:"database" yaml:"database"`
+	AwsConfig     AwsConfig     `json:"aws" yaml:"aws"`
+	Redis         RedisConf     `json:"redis" yaml:"redis"`
+}
+type RedisConf struct {
+	Host     string `mapstructure:"host" json:"host" yaml:"host"`
+	Port     int    `mapstructure:"port" json:"port" yaml:"port"`
+	DB       int    `mapstructure:"db" json:"db" yaml:"db"`
+	Password string `mapstructure:"password" json:"password" yaml:"password"`
+	Prefix   string `mapstructure:"prefix" json:"prefix" yaml:"prefix"`
 }
 type Neo4J struct {
 	URI      string `json:"uri"`
